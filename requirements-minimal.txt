@@ -1,0 +1,19 @@
+# Minimal requirements for testing play-by-play generation only
+# Install with: pip install -r requirements-minimal.txt
+
+# Core (updated for Python 3.13 compatibility)
+pydantic>=2.9.0
+pydantic-settings>=2.5.0
+
+# LLM Integration (choose one)
+openai>=1.40.0
+# anthropic>=0.34.0  # Uncomment if using Anthropic instead
+
+# Utilities
+python-dotenv>=1.0.0
+loguru>=0.7.2
+
+# Note: This minimal set allows testing storyboard generation without
+# video processing dependencies (ffmpeg, opencv, etc.)
+# For full functionality, use requirements.txt instead
+

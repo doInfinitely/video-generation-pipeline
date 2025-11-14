@@ -1,0 +1,54 @@
+{
+  "prompt": "Generate a video illustrating quicksort on an array of twelve numbers \nfrom 0 to 11, showing partition around a pivot and recursive subarrays.",
+  "storyboard": {
+    "duration_ms": 18000,
+    "fps": 24,
+    "global_style": "Clean flat 2D animation with a pale background. Each number is inside a rounded rectangle card.",
+    "keyframes": {
+      "0": "A row of twelve cards on a pale background, numbers 0 to 11 in random order.",
+      "1000": "Highlight the rightmost card (11) as the pivot. Cards are unchanged.",
+      "2000": "Show a divider moving from left to right, comparing each card to the pivot and rearranging: smaller numbers to the left, larger to the right.",
+      "4000": "Pivot (11) moves to its correct position, between smaller and larger numbers. Divider separates the array into two subarrays.",
+      "6000": "Focus on the left subarray. Highlight a new pivot. Right subarray is dimmed.",
+      "8000": "Repeat partitioning process on the left subarray, moving smaller numbers to the left of the pivot.",
+      "10000": "Pivot in the left subarray moves to its correct position. Two new subarrays are formed on its sides.",
+      "12000": "Shift focus to the right subarray from the initial partition. Highlight a new pivot. Left array is dimmed.",
+      "14000": "Repeat partitioning process on this right subarray, separating smaller and larger numbers around the pivot.",
+      "16000": "Pivot in the right subarray moves to its correct position. Final position of all numbers is nearly sorted.",
+      "18000": "All cards animate into their correct sorted positions from 0 to 11, showcasing a complete quicksort."
+    }
+  },
+  "chunks": [
+    {
+      "chunk_index": 0,
+      "start_global_ms": 0,
+      "end_global_ms": 6000,
+      "keyframes": {
+        "0": "A row of twelve cards on a pale background, numbers 0 to 11 in random order.",
+        "1000": "Highlight the rightmost card (11) as the pivot. Cards are unchanged.",
+        "2000": "Show a divider moving from left to right, comparing each card to the pivot and rearranging: smaller numbers to the left, larger to the right.",
+        "4000": "Pivot (11) moves to its correct position, between smaller and larger numbers. Divider separates the array into two subarrays."
+      }
+    },
+    {
+      "chunk_index": 1,
+      "start_global_ms": 6000,
+      "end_global_ms": 12000,
+      "keyframes": {
+        "0": "Focus on the left subarray. Highlight a new pivot. Right subarray is dimmed.",
+        "2000": "Repeat partitioning process on the left subarray, moving smaller numbers to the left of the pivot.",
+        "4000": "Pivot in the left subarray moves to its correct position. Two new subarrays are formed on its sides."
+      }
+    },
+    {
+      "chunk_index": 2,
+      "start_global_ms": 12000,
+      "end_global_ms": 18000,
+      "keyframes": {
+        "0": "Shift focus to the right subarray from the initial partition. Highlight a new pivot. Left array is dimmed.",
+        "2000": "Repeat partitioning process on this right subarray, separating smaller and larger numbers around the pivot.",
+        "4000": "Pivot in the right subarray moves to its correct position. Final position of all numbers is nearly sorted."
+      }
+    }
+  ]
+}
