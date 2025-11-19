@@ -15,9 +15,17 @@ class Settings(BaseSettings):
     llm_provider: Literal["openai", "anthropic"] = "openai"
     llm_model: str = "gpt-4-turbo-preview"  # or claude-3-opus-20240229
 
+    # Video Generation API Configuration
+    video_provider: Literal["minimax", "replicate"] = "replicate"
+    
     # Minimax API Configuration
     minimax_api_key: str = ""
     minimax_api_url: str = "https://api.minimax.chat/v1/video_generation"
+    
+    # Replicate API Configuration
+    replicate_api_token: str = ""
+    replicate_model: str = "minimax/video-01"  # or other video models on Replicate
+    use_simple_prompts: bool = True  # Use simplified prompts for video models
 
     # Video Settings
     default_fps: int = 24

@@ -11,7 +11,7 @@ from .models import VideoGenerationRequest, Storyboard
 from .play_by_play import PlayByPlayAgent
 from .chunker import chunk_keyframes
 from .prompt_builder import build_chunk_prompt, build_context_summary
-from .video_generator import MinimaxVideoGenerator
+from .prompt_builder_simple import build_simple_video_prompt
 from .video_processing import (
     extract_last_frame,
     concatenate_videos,
@@ -24,7 +24,16 @@ class VideoOrchestrator:
 
     def __init__(self):
         self.play_by_play_agent = PlayByPlayAgent()
-        self.video_generator = MinimaxVideoGenerator()
+        
+        # Initialize video generator based on provider
+        if settings.video_provider == "replicate":
+            from .video_generator_replicate import ReplicateVideoGenerator
+            self.video_generator = ReplicateVideoGenerator()
+        elif settings.video_provider == "minimax":
+            from .video_generator import MinimaxVideoGenerator
+            self.video_generator = MinimaxVideoGenerator()
+        else:
+            raise ValueError(f"Unsupported video provider: {settings.video_provider}")
 
     async def generate_video(
         self,
@@ -80,16 +89,26 @@ class VideoOrchestrator:
 
             for chunk in chunks:
                 # Build the prompt for this chunk
-                previous_context = None
-                if chunk.chunk_index > 0:
-                    previous_context = build_context_summary(chunks[chunk.chunk_index - 1])
+                if settings.use_simple_prompts:
+                    # Use simplified prompts for video models (they prefer brevity)
+                    chunk_prompt = build_simple_video_prompt(
+                        global_style=storyboard.global_style,
+                        chunk=chunk,
+                        max_length=500,
+                    )
+                    logger.info(f"Using simplified prompt ({len(chunk_prompt)} chars)")
+                else:
+                    # Use detailed prompts (original behavior)
+                    previous_context = None
+                    if chunk.chunk_index > 0:
+                        previous_context = build_context_summary(chunks[chunk.chunk_index - 1])
 
-                chunk_prompt = build_chunk_prompt(
-                    user_prompt=request.user_prompt,
-                    global_style=storyboard.global_style,
-                    chunk=chunk,
-                    previous_context=previous_context,
-                )
+                    chunk_prompt = build_chunk_prompt(
+                        user_prompt=request.user_prompt,
+                        global_style=storyboard.global_style,
+                        chunk=chunk,
+                        previous_context=previous_context,
+                    )
 
                 logger.info(f"Generating chunk {chunk.chunk_index + 1}/{len(chunks)}")
 

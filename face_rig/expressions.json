@@ -1,0 +1,61 @@
+{
+  "axes": {
+    "mouth": [
+      "neutral",
+      "smile_soft",
+      "smile_big",
+      "ah",
+      "ee",
+      "uw",
+      "frown"
+    ],
+    "eyes": [
+      "neutral",
+      "wide",
+      "squint",
+      "blink_closed"
+    ],
+    "brows": [
+      "neutral",
+      "raise",
+      "furrow"
+    ]
+  },
+  "poses": [
+    "center",
+    "tilt_left_small",
+    "tilt_right_small",
+    "nod_down_small",
+    "nod_up_small"
+  ],
+  "expressions": {
+    "neutral":        { "mouth": "neutral",    "eyes": "neutral",      "brows": "neutral" },
+    "happy_soft":     { "mouth": "smile_soft", "eyes": "squint",       "brows": "neutral" },
+    "happy_big":      { "mouth": "smile_big",  "eyes": "squint",       "brows": "raise"   },
+
+    "speaking_ah":    { "mouth": "ah",         "eyes": "neutral",      "brows": "neutral" },
+    "surprised_ah":   { "mouth": "ah",         "eyes": "wide",         "brows": "raise"   },
+
+    "speaking_ee":    { "mouth": "ee",         "eyes": "neutral",      "brows": "neutral" },
+    "speaking_uw":    { "mouth": "uw",         "eyes": "neutral",      "brows": "neutral" },
+    "oh_round":       { "mouth": "uw",         "eyes": "neutral",      "brows": "raise"   },
+
+    "concerned":      { "mouth": "frown",      "eyes": "squint",       "brows": "furrow"  },
+    "blink_closed":   { "mouth": "neutral",    "eyes": "blink_closed", "brows": "neutral" }
+  },
+  "base_paths": [
+    { "id": "neutral_to_speaking_ah",  "start": "neutral",     "end": "speaking_ah" },
+    { "id": "speaking_ah_to_surprised","start": "speaking_ah", "end": "surprised_ah" },
+
+    { "id": "neutral_to_speaking_ee",  "start": "neutral",     "end": "speaking_ee" },
+    { "id": "neutral_to_speaking_uw",  "start": "neutral",     "end": "speaking_uw" },
+    { "id": "neutral_to_oh_round",     "start": "neutral",     "end": "oh_round" },
+
+    { "id": "neutral_to_happy_soft",   "start": "neutral",     "end": "happy_soft" },
+    { "id": "happy_soft_to_happy_big", "start": "happy_soft",  "end": "happy_big" },
+
+    { "id": "neutral_to_concerned",    "start": "neutral",     "end": "concerned" },
+    { "id": "neutral_to_blink",        "start": "neutral",     "end": "blink_closed" }
+  ]
+}
+

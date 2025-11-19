@@ -4,10 +4,15 @@ import subprocess
 from pathlib import Path
 from typing import List
 
-import ffmpeg
 from loguru import logger
 
 from .config import settings
+
+# Try to import ffmpeg-python
+try:
+    import ffmpeg
+except (ImportError, AttributeError):
+    ffmpeg = None
 
 
 def extract_last_frame(video_path: Path) -> bytes:
@@ -22,18 +27,25 @@ def extract_last_frame(video_path: Path) -> bytes:
     """
     logger.debug(f"Extracting last frame from {video_path}")
     
+    output_path = video_path.parent / f"{video_path.stem}_last_frame.png"
+    
     try:
-        # Use ffmpeg to extract the last frame
-        # -sseof -0.04 seeks to 0.04 seconds before the end
-        output_path = video_path.parent / f"{video_path.stem}_last_frame.png"
-        
-        (
-            ffmpeg
-            .input(str(video_path), sseof=-0.04)
-            .output(str(output_path), vframes=1, format='image2', vcodec='png')
-            .overwrite_output()
-            .run(capture_stdout=True, capture_stderr=True, quiet=True)
-        )
+        if ffmpeg is not None:
+            # Use ffmpeg-python library
+            try:
+                (
+                    ffmpeg
+                    .input(str(video_path), sseof=-0.04)
+                    .output(str(output_path), vframes=1, format='image2', vcodec='png')
+                    .overwrite_output()
+                    .run(capture_stdout=True, capture_stderr=True, quiet=True)
+                )
+            except Exception as e:
+                logger.warning(f"ffmpeg-python failed: {e}, falling back to subprocess")
+                ffmpeg_subprocess_extract_frame(video_path, output_path)
+        else:
+            # Use subprocess fallback
+            ffmpeg_subprocess_extract_frame(video_path, output_path)
         
         # Read the frame bytes
         with open(output_path, "rb") as f:
@@ -45,12 +57,26 @@ def extract_last_frame(video_path: Path) -> bytes:
         logger.success(f"Extracted last frame ({len(frame_bytes)} bytes)")
         return frame_bytes
     
-    except ffmpeg.Error as e:
-        logger.error(f"FFmpeg error extracting frame: {e.stderr.decode()}")
-        raise
     except Exception as e:
         logger.error(f"Failed to extract last frame: {e}")
         raise
+
+
+def ffmpeg_subprocess_extract_frame(video_path: Path, output_path: Path):
+    """Extract frame using subprocess call to ffmpeg."""
+    cmd = [
+        'ffmpeg',
+        '-sseof', '-0.04',
+        '-i', str(video_path),
+        '-vframes', '1',
+        '-f', 'image2',
+        '-vcodec', 'png',
+        '-y',  # overwrite
+        str(output_path)
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"FFmpeg failed: {result.stderr}")
 
 
 def concatenate_videos(video_paths: List[Path], output_path: Path) -> Path:
@@ -76,10 +102,10 @@ def concatenate_videos(video_paths: List[Path], output_path: Path) -> Path:
         shutil.copy(video_paths[0], output_path)
         return output_path
     
+    # Create a temporary file list for ffmpeg concat
+    concat_file = output_path.parent / "concat_list.txt"
+    
     try:
-        # Create a temporary file list for ffmpeg concat
-        concat_file = output_path.parent / "concat_list.txt"
-        
         with open(concat_file, "w") as f:
             for video_path in video_paths:
                 # Write the absolute path and escape special characters
@@ -88,13 +114,22 @@ def concatenate_videos(video_paths: List[Path], output_path: Path) -> Path:
         # Use ffmpeg concat demuxer
         logger.debug(f"Concatenating with concat file: {concat_file}")
         
-        (
-            ffmpeg
-            .input(str(concat_file), format='concat', safe=0)
-            .output(str(output_path), c='copy')
-            .overwrite_output()
-            .run(capture_stdout=True, capture_stderr=True, quiet=True)
-        )
+        if ffmpeg is not None:
+            # Use ffmpeg-python library
+            try:
+                (
+                    ffmpeg
+                    .input(str(concat_file), format='concat', safe=0)
+                    .output(str(output_path), c='copy')
+                    .overwrite_output()
+                    .run(capture_stdout=True, capture_stderr=True, quiet=True)
+                )
+            except Exception as e:
+                logger.warning(f"ffmpeg-python failed: {e}, falling back to subprocess")
+                ffmpeg_subprocess_concat(concat_file, output_path)
+        else:
+            # Use subprocess fallback
+            ffmpeg_subprocess_concat(concat_file, output_path)
         
         # Clean up the concat file
         concat_file.unlink()
@@ -102,12 +137,27 @@ def concatenate_videos(video_paths: List[Path], output_path: Path) -> Path:
         logger.success(f"Concatenated video saved to {output_path}")
         return output_path
     
-    except ffmpeg.Error as e:
-        logger.error(f"FFmpeg error during concatenation: {e.stderr.decode()}")
-        raise
     except Exception as e:
         logger.error(f"Failed to concatenate videos: {e}")
+        if concat_file.exists():
+            concat_file.unlink()
         raise
+
+
+def ffmpeg_subprocess_concat(concat_file: Path, output_path: Path):
+    """Concatenate videos using subprocess call to ffmpeg."""
+    cmd = [
+        'ffmpeg',
+        '-f', 'concat',
+        '-safe', '0',
+        '-i', str(concat_file),
+        '-c', 'copy',
+        '-y',  # overwrite
+        str(output_path)
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"FFmpeg concatenation failed: {result.stderr}")
 
 
 def save_video_bytes(video_bytes: bytes, output_path: Path) -> Path:
@@ -143,24 +193,54 @@ def get_video_info(video_path: Path) -> dict:
         Dictionary with video information (duration, fps, resolution, etc.)
     """
     try:
-        probe = ffmpeg.probe(str(video_path))
-        video_stream = next(
-            (stream for stream in probe['streams'] if stream['codec_type'] == 'video'),
-            None
-        )
-        
-        if not video_stream:
-            raise ValueError("No video stream found")
-        
-        info = {
-            "duration": float(probe['format']['duration']),
-            "fps": eval(video_stream['r_frame_rate']),
-            "width": video_stream['width'],
-            "height": video_stream['height'],
-            "codec": video_stream['codec_name'],
-        }
-        
-        return info
+        if ffmpeg is not None:
+            probe = ffmpeg.probe(str(video_path))
+            video_stream = next(
+                (stream for stream in probe['streams'] if stream['codec_type'] == 'video'),
+                None
+            )
+            
+            if not video_stream:
+                raise ValueError("No video stream found")
+            
+            info = {
+                "duration": float(probe['format']['duration']),
+                "fps": eval(video_stream['r_frame_rate']),
+                "width": video_stream['width'],
+                "height": video_stream['height'],
+                "codec": video_stream['codec_name'],
+            }
+            
+            return info
+        else:
+            # Fallback: use ffprobe subprocess
+            cmd = [
+                'ffprobe',
+                '-v', 'error',
+                '-select_streams', 'v:0',
+                '-show_entries', 'stream=width,height,r_frame_rate,codec_name',
+                '-show_entries', 'format=duration',
+                '-of', 'json',
+                str(video_path)
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            if result.returncode != 0:
+                raise RuntimeError(f"ffprobe failed: {result.stderr}")
+            
+            import json
+            data = json.loads(result.stdout)
+            stream = data['streams'][0]
+            
+            fps_parts = stream['r_frame_rate'].split('/')
+            fps = int(fps_parts[0]) / int(fps_parts[1]) if len(fps_parts) == 2 else float(fps_parts[0])
+            
+            return {
+                "duration": float(data['format']['duration']),
+                "fps": fps,
+                "width": stream['width'],
+                "height": stream['height'],
+                "codec": stream['codec_name'],
+            }
     
     except Exception as e:
         logger.error(f"Failed to get video info: {e}")

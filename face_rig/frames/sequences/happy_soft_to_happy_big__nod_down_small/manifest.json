@@ -1,0 +1,28 @@
+{
+  "path_id": "happy_soft_to_happy_big__nod_down_small",
+  "expr_start": "happy_soft",
+  "expr_end": "happy_big",
+  "pose": "nod_down_small",
+  "frames": [
+    {
+      "t": 0.0,
+      "file": "000.png"
+    },
+    {
+      "t": 0.25,
+      "file": "025.png"
+    },
+    {
+      "t": 0.5,
+      "file": "050.png"
+    },
+    {
+      "t": 0.75,
+      "file": "075.png"
+    },
+    {
+      "t": 1.0,
+      "file": "100.png"
+    }
+  ]
+}
