@@ -2,6 +2,7 @@
 Main pipeline orchestrator - coordinates all modules
 """
 import json
+import subprocess
 from pathlib import Path
 from datetime import datetime
 
@@ -142,6 +143,7 @@ class VideoPipeline:
             
             # Step 3.5: Generate face_rig videos (if enabled)
             face_rig_videos = []
+            face_rig_audio_files = []
             scene_audio_durations = []
             if self.use_face_rig:
                 if progress_callback:
@@ -156,6 +158,7 @@ class VideoPipeline:
                             scene['scene_number']
                         )
                         face_rig_videos.append(face_rig_result['video_path'])
+                        face_rig_audio_files.append(face_rig_result['audio_path'])
                         scene_audio_durations.append(face_rig_result['audio_duration'])
                         
                         # Update scene duration to match actual audio duration
@@ -166,6 +169,7 @@ class VideoPipeline:
                         # Continue without face_rig for this scene
                 
                 self.current_project["steps"]["face_rig_videos"] = face_rig_videos
+                self.current_project["steps"]["face_rig_audio_files"] = face_rig_audio_files
                 self.current_project["steps"]["scene_audio_durations"] = scene_audio_durations
                 
                 if progress_callback:
@@ -182,16 +186,17 @@ class VideoPipeline:
                 progress_callback(4, 7, "✅ Video clips generated", f"{len(clip_paths)} video clips created")
             
             # Step 5: Generate voiceover (skip if face_rig already generated audio)
-            if self.use_face_rig and face_rig_videos:
-                # Use face_rig audio instead
+            if self.use_face_rig and face_rig_videos and face_rig_audio_files:
+                # Use face_rig audio instead - combine the audio files
                 safe_print("\n[5/7] Voiceover Generation (using face_rig audio)")
                 safe_print("-" * 70)
-                safe_print("  ⏭️  Skipping - using audio from face_rig character animations")
-                # We'll need to combine the face_rig audio files
-                audio_path = self._combine_face_rig_audio(scene_plan)
+                safe_print("  ⏭️  Skipping generation - using audio from face_rig character animations")
+                safe_print(f"  🎵 Combining {len(face_rig_audio_files)} audio files...")
+                audio_path = self._combine_audio_files(face_rig_audio_files)
                 self.current_project["steps"]["audio"] = audio_path
+                safe_print(f"  ✅ Combined audio: {Path(audio_path).name}")
                 if progress_callback:
-                    progress_callback(5, 7, "✅ Using face_rig audio", "Audio from character animations")
+                    progress_callback(5, 7, "✅ Using face_rig audio", f"Combined {len(face_rig_audio_files)} audio files")
             else:
                 if progress_callback:
                     progress_callback(5, 7, "🎙️ Generating voiceover...", "Creating audio narration from script")
@@ -257,43 +262,93 @@ class VideoPipeline:
         
         safe_print(f"\n💾 Metadata saved: {metadata_path.name}")
     
-    def _combine_face_rig_audio(self, scene_plan):
+    def _combine_audio_files(self, audio_files):
         """
-        Combine audio files from face_rig for each scene into a single audio file
+        Combine multiple audio files into a single file using FFmpeg
         
         Args:
-            scene_plan: Scene plan with face_rig data
+            audio_files: List of audio file paths to combine
             
         Returns:
             str: Path to combined audio file
         """
-        import subprocess
-        from pathlib import Path
+        if not audio_files:
+            raise ValueError("No audio files to combine")
         
-        # Get face_rig audio paths from the audio directory
-        audio_dir = Path(self.face_rig.audio_dir)
+        if len(audio_files) == 1:
+            # Only one file, just return it
+            return audio_files[0]
         
-        # Find audio files corresponding to each scene
-        audio_files = []
-        for scene in scene_plan['scenes']:
-            # The face_rig generates audio with scene-specific filenames
-            # We need to find the audio files in the audio directory
-            # For now, we'll use a simple approach - get the most recent audio files
-            pass
-        
-        # For now, generate a combined audio from the full script
-        # This is a fallback approach
-        safe_print("  ℹ️  Combining audio from scenes...")
+        # Create a list file for FFmpeg concat
+        list_file = TEMP_DIR / "audio_concat_list.txt"
         combined_audio_path = TEMP_DIR / "combined_narration.wav"
         
-        # We'll use the audio_gen to generate combined audio from full script
-        full_script = " ".join([scene['narration'] for scene in scene_plan['scenes']])
-        combined_data = {
-            'script': full_script,
-            'title': scene_plan.get('title', 'Combined Narration')
-        }
+        try:
+            # Write list of audio files
+            with open(list_file, 'w', encoding='utf-8') as f:
+                for audio_file in audio_files:
+                    # Escape single quotes in path
+                    escaped_path = str(Path(audio_file)).replace("'", "'\\''")
+                    f.write(f"file '{escaped_path}'\n")
+            
+            # Use FFmpeg to concatenate audio files
+            cmd = [
+                self.assembler.ffmpeg_cmd,
+                "-y",  # Overwrite output
+                "-f", "concat",
+                "-safe", "0",
+                "-i", str(list_file),
+                "-c", "copy",  # Copy codec (no re-encoding)
+                str(combined_audio_path)
+            ]
+            
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            
+            # Clean up list file
+            if list_file.exists():
+                list_file.unlink()
+            
+            return str(combined_audio_path)
+            
+        except subprocess.CalledProcessError as e:
+            safe_print(f"  ⚠️  FFmpeg concat failed, trying alternative method...")
+            # Fallback: use filter_complex for concatenation
+            return self._combine_audio_files_filter(audio_files, combined_audio_path)
+        except Exception as e:
+            safe_print(f"  ❌ Error combining audio files: {e}")
+            raise
+    
+    def _combine_audio_files_filter(self, audio_files, output_path):
+        """
+        Combine audio files using FFmpeg filter_complex (alternative method)
         
-        return self.audio_gen.generate(combined_data)
+        Args:
+            audio_files: List of audio file paths
+            output_path: Output path for combined audio
+            
+        Returns:
+            str: Path to combined audio file
+        """
+        # Build FFmpeg command with filter_complex
+        cmd = [self.assembler.ffmpeg_cmd, "-y"]
+        
+        # Add input files
+        for audio_file in audio_files:
+            cmd.extend(["-i", str(audio_file)])
+        
+        # Build filter_complex for concatenation
+        filter_inputs = "".join([f"[{i}:a]" for i in range(len(audio_files))])
+        filter_complex = f"{filter_inputs}concat=n={len(audio_files)}:v=0:a=1[outa]"
+        
+        cmd.extend([
+            "-filter_complex", filter_complex,
+            "-map", "[outa]",
+            str(output_path)
+        ])
+        
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        
+        return str(output_path)
     
     def _print_summary(self, video_path):
         """print pipeline completion summary"""

@@ -133,8 +133,8 @@ def initialize_pipeline():
             use_storyboard=st.session_state.get("use_storyboard", False),
             svd_model=st.session_state.get("svd_model"),
             sdxl_model=st.session_state.get("sdxl_model"),
-            voice_id=st.session_state.get("voice_id", "Lny4bN2CTZWgKZAgIHKa"),
-            use_face_rig=st.session_state.get("use_face_rig", True),
+            # Face rig is always enabled
+            use_face_rig=True,
             face_rig_url=st.session_state.get("face_rig_url", "http://localhost:8000"),
             face_rig_voice_id=st.session_state.get("face_rig_voice_id", "21m00Tcm4TlvDq8ikWAM")
         )
@@ -286,48 +286,34 @@ with st.sidebar:
             help="Generate storyboard images first, then use image-to-video (better quality, slower)"
         )
 
-    # Voice Selection Accordion
-    with st.expander("🗣️ Voice", expanded=True):
-        voice_options = {
-            "Sarah": "Lny4bN2CTZWgKZAgIHKa",
-            "Nathaniel": "pFQStpMdprGFILRDrWR2",
-            "Zane": "mfxPGiKweaQEsXJix2Ve",
-            "Sona": "WfAlRPDvwudHwu88rxEX",
-            "Russ": "HKFOb9iktHA85uKXydRT",
-            "Ryan": "tJHJUEHzOkMoPmJJ5jo2"
-        }
-        selected_voice = st.selectbox("Choose Narrator Voice", list(voice_options.keys()), key="voice_name")
-        st.session_state.voice_id = voice_options[selected_voice]
-    
     # Face Rig Settings
-    with st.expander("🎭 Face Rig Character Animation", expanded=True):
-        st.checkbox(
-            "Enable Face Rig Character",
-            value=True,
-            key="use_face_rig",
-            help="Add animated character with lip-sync to narration (requires face_rig server)"
+    with st.expander("🎭 Character Voice & Settings", expanded=True):
+        st.text_input(
+            "Face Rig Server URL",
+            value="http://localhost:8000",
+            key="face_rig_url",
+            help="URL of the running face_rig server"
         )
         
-        if st.session_state.get("use_face_rig", True):
-            st.text_input(
-                "Face Rig Server URL",
-                value="http://localhost:8000",
-                key="face_rig_url",
-                help="URL of the running face_rig server"
-            )
-            
-            face_rig_voice_options = {
-                "Sam": "21m00Tcm4TlvDq8ikWAM",  # Default Sam voice
-                "Rachel": "21m00Tcm4TlvDq8ikWAM",
-                "Domi": "AZnzlk1XvdvUeBnXmlld",
-                "Bella": "EXAVITQu4vr4xnSDxMaL"
-            }
-            selected_fr_voice = st.selectbox(
-                "Character Voice",
-                list(face_rig_voice_options.keys()),
-                key="face_rig_voice_name"
-            )
-            st.session_state.face_rig_voice_id = face_rig_voice_options[selected_fr_voice]
+        st.markdown("**Narrator Voice**")
+        face_rig_voice_options = {
+            "Sam (Male, Conversational)": "21m00Tcm4TlvDq8ikWAM",
+            "Bella (Female, Engaging)": "EXAVITQu4vr4xnSDxMaL",
+            "Domi (Female, Confident)": "AZnzlk1XvdvUeBnXmlld",
+            "Adam (Male, Deep)": "pNInz6obpgDQGcFmaJgB",
+            "Rachel (Female, Calm)": "21m00Tcm4TlvDq8ikWAM",
+            "Antoni (Male, Young)": "ErXwobaYiN019PkySvjV",
+        }
+        selected_fr_voice = st.selectbox(
+            "Choose Voice",
+            list(face_rig_voice_options.keys()),
+            index=0,  # Default to Sam
+            key="face_rig_voice_name",
+            help="This voice will be used for all narration and character animation"
+        )
+        st.session_state.face_rig_voice_id = face_rig_voice_options[selected_fr_voice]
+        
+        st.info("💡 Animated character with lip-sync will appear in bottom-right corner")
 
     
     # Initialize pipeline button
@@ -397,8 +383,8 @@ else:
     if st.session_state.generating:
         st.header("⏳ Generation Progress")
         
-        # Progress bar
-        total_steps = 7 if st.session_state.get("use_face_rig", True) else 6
+        # Progress bar (always 7 steps with face_rig)
+        total_steps = 7
         progress_percent = (st.session_state.progress_step / total_steps) if st.session_state.progress_step > 0 else 0.01
         st.progress(progress_percent)
         
@@ -418,16 +404,11 @@ else:
                 ("📝", "Script Generation", "Creating narrative structure"),
                 ("🎬", "Scene Planning", "Breaking down into visual scenes"),
                 ("🎨", "Storyboard Generation", "Creating visual storyboards"),
-            ]
-            
-            if st.session_state.get("use_face_rig", True):
-                steps.append(("🎭", "Face Rig Character Animation", "Creating lip-sync videos for narration"))
-            
-            steps.extend([
+                ("🎭", "Character Animation", "Creating lip-sync videos with emotions"),
                 ("🎥", "Video Clip Generation", "Creating animated video clips"),
-                ("🎙️", "Voiceover Generation", "Creating audio narration"),
-                ("🎬", "Final Assembly", "Combining video clips with audio")
-            ])
+                ("🎙️", "Audio Assembly", "Combining character audio"),
+                ("🎬", "Final Assembly", "Combining video with picture-in-picture")
+            ]
             
             for i, (emoji, title, description) in enumerate(steps, 1):
                 if i < st.session_state.progress_step:
