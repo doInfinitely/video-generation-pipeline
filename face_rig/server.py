@@ -419,6 +419,9 @@ async def generate_emotions(request: EmotionRequest):
         raise HTTPException(500, "OPENAI_API_KEY not set in environment")
     
     try:
+        # Initialize OpenAI client
+        # Note: Some environments have proxy env vars that can cause compatibility issues
+        # The latest OpenAI SDK handles this better
         client = openai.OpenAI(api_key=api_key)
         
         # Format phoneme timeline for context
@@ -551,6 +554,22 @@ async def generate_alignment(
         
         print(f"[MFA] Output directory: {output_dir}")
         
+        # Check if conda is available at all (early check to provide better error messages)
+        try:
+            subprocess.run(
+                ["which", "conda"],
+                capture_output=True,
+                check=True,
+                timeout=5
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+            raise HTTPException(
+                503,
+                "MFA alignment service not available: conda not found. "
+                "This deployment doesn't include Montreal Forced Aligner. "
+                "To enable alignment, rebuild with Dockerfile.with-mfa or use manual timing."
+            )
+        
         # Get conda configuration from environment or detect from conda
         mfa_env = os.environ.get("MFA_ENV", "aligner")
         
@@ -563,9 +582,12 @@ async def generate_alignment(
                     text=True,
                     timeout=5
                 ).strip()
-            except:
-                # Fallback to common locations
-                conda_base = os.path.expanduser("~/opt/miniconda3")
+            except Exception as e:
+                raise HTTPException(
+                    503,
+                    f"MFA alignment service not available: could not detect conda base. "
+                    f"Set CONDA_BASE environment variable or rebuild with Dockerfile.with-mfa. Error: {str(e)}"
+                )
         
         print(f"[MFA] Using conda base: {conda_base}")
         print(f"[MFA] Using conda env: {mfa_env}")
@@ -585,12 +607,21 @@ async def generate_alignment(
         )
         
         if check_result.returncode != 0:
-            raise RuntimeError(f"MFA not available in conda env '{mfa_env}': {check_result.stderr}")
+            error_msg = check_result.stderr.strip()
+            print(f"[MFA] Check failed: {error_msg}")
+            raise HTTPException(
+                503,
+                f"MFA not available in conda env '{mfa_env}'. "
+                f"This deployment doesn't include Montreal Forced Aligner. "
+                f"Rebuild with Dockerfile.with-mfa to enable alignment. "
+                f"Technical details: {error_msg[:300]}"
+            )
         
         print(f"[MFA] MFA check passed: {check_result.stdout.strip()}")
         
         # Activate conda environment and run MFA
         # Using bash to source conda and activate environment
+        # Optimized for speed: disabled verbose, minimal iterations
         mfa_cmd = f"""
         source {conda_base}/etc/profile.d/conda.sh && \
         conda activate {mfa_env} && \
@@ -598,7 +629,8 @@ async def generate_alignment(
             --clean \
             --single_speaker \
             --num_jobs 1 \
-            --verbose
+            --beam 100 \
+            --retry_beam 400
         """
         
         result = subprocess.run(
