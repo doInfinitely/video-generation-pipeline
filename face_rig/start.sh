@@ -10,6 +10,9 @@ else
     echo "📁 Using local filesystem for frames"
 fi
 
-echo "🌟 Starting uvicorn server..."
-exec uvicorn server:app --host 0.0.0.0 --port 8000
+echo "🌟 Starting uvicorn server with extended timeouts..."
+exec uvicorn server:app \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --timeout-keep-alive 300
 

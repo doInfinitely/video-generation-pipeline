@@ -7,7 +7,7 @@ from pathlib import Path
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from config import ensure_directories, OUTPUT_DIR, TEMP_DIR, USE_STORYBOARD
+from config import ensure_directories, OUTPUT_DIR, TEMP_DIR, USE_STORYBOARD, FACE_RIG_URL
 from script_generator import ScriptGenerator
 from scene_planner_ENHANCED import ScenePlanner
 from storyboard_generator import StoryboardGenerator
@@ -37,7 +37,7 @@ class VideoPipeline:
                  svd_model=None,
                  sdxl_model=None,
                  use_face_rig=True,
-                 face_rig_url="http://localhost:8000",
+                 face_rig_url=None,
                  face_rig_voice_id="yoZ06aMxZJJ28mfd3POQ"):
         """
         Initialize the video generation pipeline
@@ -50,7 +50,7 @@ class VideoPipeline:
             tts_provider (str): TTS provider (elevenlabs only)
             use_storyboard (bool): Whether to generate storyboard images first (default: from config)
             use_face_rig (bool): Whether to use face_rig character animations (always True)
-            face_rig_url (str): URL of the face_rig server (default: http://localhost:8000)
+            face_rig_url (str): URL of the face_rig server (default: from FACE_RIG_URL env var or http://localhost:8000)
             face_rig_voice_id (str): ElevenLabs voice ID for character narration (default: Sam)
         """
         ensure_directories()
@@ -64,6 +64,10 @@ class VideoPipeline:
         
         self.use_storyboard = use_storyboard if use_storyboard is not None else USE_STORYBOARD
         self.use_face_rig = use_face_rig
+        
+        # Use config default if not specified
+        if face_rig_url is None:
+            face_rig_url = FACE_RIG_URL
         
         # Initialize face_rig integrator (always required)
         if self.use_face_rig:
