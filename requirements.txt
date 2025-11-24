@@ -7,6 +7,7 @@ pydantic-settings>=2.5.0
 # LLM Integration (install at least one)
 openai>=1.40.0
 # anthropic>=0.34.0  # Uncomment if using Anthropic
+google-generativeai>=0.8.0  # For Three.js generator
 
 # Video Generation
 replicate>=1.0.0
@@ -15,6 +16,7 @@ replicate>=1.0.0
 ffmpeg-python>=0.2.0
 opencv-python>=4.10.0
 Pillow>=10.4.0
+playwright>=1.48.0  # For Three.js rendering
 
 # HTTP Client
 httpx>=0.27.0

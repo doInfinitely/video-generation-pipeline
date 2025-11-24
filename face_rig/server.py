@@ -15,6 +15,17 @@ from fastapi.responses import Response, FileResponse, RedirectResponse
 from PIL import Image
 import openai
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    env_path = Path(__file__).parent / ".env"
+    if env_path.exists():
+        load_dotenv(env_path)
+        print(f"✅ Loaded environment from {env_path}")
+except ImportError:
+    print("⚠️  python-dotenv not installed, skipping .env loading")
+    pass
+
 # --- CONFIG ---
 
 # S3 Configuration

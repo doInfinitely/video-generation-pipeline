@@ -7,7 +7,7 @@ python-multipart==0.0.20
 pillow==11.0.0
 
 # AI integrations
-openai==1.54.0
+openai==2.8.1
 
 # AWS S3 support
 boto3==1.35.50
