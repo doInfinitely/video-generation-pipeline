@@ -26,6 +26,7 @@ wheels/
 # Environment
 .env
 .venv
+.streamlit/secrets.toml
 
 # IDE
 .vscode/
@@ -53,4 +54,8 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Face rig generated files
+face_rig/frames/
+face_rig/audio/
 

@@ -7,7 +7,7 @@ from pathlib import Path
 import os
 
 from pipeline import VideoPipeline
-from config import OUTPUT_DIR, ensure_directories
+from config import OUTPUT_DIR, ensure_directories, get_secret
 
 
 # Page configuration
@@ -63,9 +63,9 @@ def initialize_pipeline():
             pass
     
     # Check API keys
-    openai_key = os.getenv("OPENAI_API_KEY")
-    replicate_key = os.getenv("REPLICATE_API_KEY") or os.getenv("VIDEO_API_KEY")
-    tts_key = os.getenv("TTS_API_KEY") or os.getenv("ELEVEN_LABS_API_KEY")
+    openai_key = get_secret("OPENAI_API_KEY")
+    replicate_key = get_secret("REPLICATE_API_KEY") or get_secret("VIDEO_API_KEY")
+    tts_key = get_secret("TTS_API_KEY") or get_secret("ELEVEN_LABS_API_KEY")
     
     if not openai_key:
         errors.append("❌ **OPENAI_API_KEY** not found in environment variables")
@@ -258,42 +258,42 @@ def generate_video(prompt):
 with st.sidebar:
     st.header("⚙️ Configuration")
     
-    # API Keys Status (loaded from .env file)
+    # API Keys Status (loaded from Streamlit secrets or .env file)
     with st.expander("🔑 API Keys Status", expanded=False):
         # Check which keys are loaded
-        openai_key = os.getenv("OPENAI_API_KEY", "")
-        replicate_key = os.getenv("REPLICATE_API_KEY")
-        eleven_labs_key = os.getenv("ELEVEN_LABS_API_KEY", "")
-        gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY", "")
+        openai_key = get_secret("OPENAI_API_KEY", "")
+        replicate_key = get_secret("REPLICATE_API_KEY")
+        eleven_labs_key = get_secret("ELEVEN_LABS_API_KEY", "")
+        gemini_key = get_secret("GEMINI_API_KEY") or get_secret("GOOGLE_API_KEY", "")
 
         # Show status for each key
         if openai_key:
-            st.success("✅ OpenAI API Key: Loaded from environment")
+            st.success("✅ OpenAI API Key: Configured")
         else:
-            st.warning("⚠️ OpenAI API Key: Not found (set OPENAI_API_KEY in .env)")
+            st.warning("⚠️ OpenAI API Key: Not found (set in Streamlit secrets or .env)")
 
         if replicate_key:
-            st.success("✅ Replicate API Key: Loaded from environment")
+            st.success("✅ Replicate API Key: Configured")
         else:
-            st.warning("⚠️ Replicate API Key: Not found (set REPLICATE_API_KEY in .env)")
+            st.warning("⚠️ Replicate API Key: Not found (set in Streamlit secrets or .env)")
 
         if gemini_key:
-            st.success("✅ Gemini API Key: Loaded from environment")
+            st.success("✅ Gemini API Key: Configured")
             st.caption("📊 Enables labeled diagram generation with matplotlib")
         else:
-            st.info("ℹ️ Gemini API Key: Optional for labeled diagrams (set GEMINI_API_KEY in .env)")
+            st.info("ℹ️ Gemini API Key: Optional for labeled diagrams (set in Streamlit secrets or .env)")
 
         if eleven_labs_key:
-            st.success("✅ Eleven Labs API Key: Loaded from environment")
+            st.success("✅ Eleven Labs API Key: Configured")
         else:
-            st.info("ℹ️ Eleven Labs API Key: Optional (set ELEVEN_LABS_API_KEY in .env)")
+            st.info("ℹ️ Eleven Labs API Key: Optional (set in Streamlit secrets or .env)")
     
     # Provider Selection
     with st.expander("🎨 Providers", expanded=True):
-        _replicate_key = os.getenv("REPLICATE_API_KEY") or os.getenv("VIDEO_API_KEY")
+        _replicate_key = get_secret("REPLICATE_API_KEY") or get_secret("VIDEO_API_KEY")
         _providers = ["replicate"]
         if not _replicate_key:
-            st.error("Replicate API key not found. Please set REPLICATE_API_KEY in your .env file.")
+            st.error("Replicate API key not found. Please set REPLICATE_API_KEY in Streamlit secrets or .env file.")
         st.selectbox("Video Provider", _providers, index=0, key="video_provider", disabled=not _replicate_key)
         from config import STABILITY_MODEL, STORYBOARD_MODEL
         st.text_input("Image-to-Video Model (Replicate)", value=STABILITY_MODEL, key="svd_model")

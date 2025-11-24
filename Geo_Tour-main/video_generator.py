@@ -14,6 +14,7 @@ from config import (
     STABILITY_MODEL,
     STORYBOARD_MODEL,
     TEMP_DIR,
+    GEMINI_API_KEY,
 )
 
 
@@ -161,15 +162,13 @@ class VideoGenerator:
 
     def _generate_matplotlib_diagram(self, description, duration, scene_number, output_dir, max_retries=3):
         """Generate a labeled matplotlib diagram with simple animation using gemini-3-pro-preview"""
-        import os
         import google.generativeai as genai
 
         # Get Gemini API key
-        gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-        if not gemini_key:
-            raise RuntimeError("Gemini API key required. Set GEMINI_API_KEY or GOOGLE_API_KEY environment variable")
+        if not GEMINI_API_KEY:
+            raise RuntimeError("Gemini API key required. Set GEMINI_API_KEY in Streamlit secrets or environment variable")
 
-        genai.configure(api_key=gemini_key)
+        genai.configure(api_key=GEMINI_API_KEY)
         model = genai.GenerativeModel("gemini-3-pro-preview")
 
         last_error = None
@@ -196,10 +195,9 @@ class VideoGenerator:
 
     def _generate_matplotlib_diagram_attempt(self, description, duration, scene_number, output_dir, error_context=""):
         """Single attempt to generate matplotlib diagram"""
-        import os
         import google.generativeai as genai
 
-        genai.configure(api_key=os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY"))
+        genai.configure(api_key=GEMINI_API_KEY)
         model = genai.GenerativeModel("gemini-3-pro-preview")
 
         # Create prompt for matplotlib code generation
@@ -319,15 +317,13 @@ Generate the complete, runnable code now:"""
 
     def _generate_3d_visualization(self, description, duration, scene_number, output_dir):
         """Generate a 3D visualization using gemini-3-pro-image-preview slideshow"""
-        import os
         import google.generativeai as genai
 
         # Get Gemini API key
-        gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-        if not gemini_key:
-            raise RuntimeError("Gemini API key required. Set GEMINI_API_KEY or GOOGLE_API_KEY environment variable")
+        if not GEMINI_API_KEY:
+            raise RuntimeError("Gemini API key required. Set GEMINI_API_KEY in Streamlit secrets or environment variable")
 
-        genai.configure(api_key=gemini_key)
+        genai.configure(api_key=GEMINI_API_KEY)
         model = genai.GenerativeModel("gemini-3-pro-image-preview")
 
         safe_print(f"    🎨 Generating image slideshow with gemini-3-pro-image-preview...")

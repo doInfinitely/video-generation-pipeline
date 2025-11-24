@@ -14,10 +14,24 @@ except ImportError:
     # python-dotenv not installed, skip .env loading
     pass
 
-# API Keys - Set these as environment variables or edit directly
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-VIDEO_API_KEY = os.getenv("VIDEO_API_KEY")
-TTS_API_KEY = os.getenv("TTS_API_KEY", os.getenv("ELEVENLABS_API_KEY"))
+def get_secret(key, default=None):
+    """
+    Get secret from Streamlit secrets (if available) or environment variables
+    Falls back to environment variables for local development
+    """
+    try:
+        import streamlit as st
+        if hasattr(st, 'secrets') and key in st.secrets:
+            return st.secrets[key]
+    except (ImportError, FileNotFoundError, AttributeError):
+        # Streamlit not available or secrets not configured
+        pass
+    return os.getenv(key, default)
+
+# API Keys - Get from Streamlit secrets or environment variables
+OPENAI_API_KEY = get_secret("OPENAI_API_KEY")
+VIDEO_API_KEY = get_secret("VIDEO_API_KEY")
+TTS_API_KEY = get_secret("TTS_API_KEY") or get_secret("ELEVENLABS_API_KEY")
 
 # Directory settings
 BASE_DIR = Path(__file__).parent
@@ -44,9 +58,12 @@ VIDEO_API_PROVIDER = "replicate"  # Options: replicate, runwayml, pika, stabilit
 VIDEO_MODEL = "gen-3-alpha"
 
 # Replicate API settings
-REPLICATE_API_KEY = os.getenv("REPLICATE_API_KEY", os.getenv("VIDEO_API_KEY"))
+REPLICATE_API_KEY = get_secret("REPLICATE_API_KEY") or get_secret("VIDEO_API_KEY")
 REPLICATE_MODEL = "anotherjesse/zeroscope-v2-xl"  # Text-to-video model
 STABILITY_MODEL = "bytedance/seedance-1-pro"  # Default image-to-video model (Replicate)
+
+# Google Gemini API settings (for matplotlib diagram generation)
+GEMINI_API_KEY = get_secret("GEMINI_API_KEY") or get_secret("GOOGLE_API_KEY")
 
 # Storyboard settings
 STORYBOARD_PROVIDER = "replicate"  # Options: replicate, mock
