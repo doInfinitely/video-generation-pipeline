@@ -529,8 +529,9 @@ async def generate_alignment(
             # Fallback if wave fails - estimate from file size
             audio_duration_seconds = 30  # Conservative default
         
-        # Calculate timeout: ~90 seconds per minute of audio, minimum 120 seconds
-        alignment_timeout = max(120, int(audio_duration_seconds * 90))
+        # Calculate timeout: 5 minutes per second of audio, minimum 10 minutes
+        # MFA can be slow on some systems, so being very generous
+        alignment_timeout = max(600, int(audio_duration_seconds * 300))
         
         print(f"[MFA] Audio duration: {audio_duration_seconds:.1f}s")
         print(f"[MFA] Alignment timeout: {alignment_timeout}s")
@@ -596,9 +597,8 @@ async def generate_alignment(
         mfa align {temp_dir} english_us_arpa english_us_arpa {output_dir} \
             --clean \
             --single_speaker \
-            --beam 10 \
-            --retry_beam 40 \
-            --num_jobs 2
+            --num_jobs 1 \
+            --verbose
         """
         
         result = subprocess.run(

@@ -124,14 +124,14 @@ class FaceRigIntegrator:
             
             safe_print(f"    ✅ Audio generated: {audio_duration:.2f}s")
             
-            # Step 2: Generate MFA alignment
+            # Step 2: Generate MFA alignment (needed for emotion timing)
             safe_print(f"    📊 Generating phoneme alignment with MFA...")
             mfa_timeline = self._retry_api_call(self._generate_alignment, audio_path, scene_narration)
             total_duration_ms = int(audio_duration * 1000)
             
             safe_print(f"    ✅ Generated {len(mfa_timeline.get('keyframes', []))} phoneme keyframes")
             
-            # Step 3: Generate emotion timeline
+            # Step 3: Generate emotion timeline (uses phoneme timing)
             safe_print(f"    😊 Generating emotion timeline with AI...")
             emotion_timeline = self._retry_api_call(
                 self._generate_emotions,
@@ -142,7 +142,7 @@ class FaceRigIntegrator:
             
             safe_print(f"    ✅ Generated {len(emotion_timeline.get('keyframes', []))} emotion keyframes")
             
-            # Step 4: Combine phoneme and emotion timelines
+            # Step 4: Combine timelines (only emotions used for animation, phonemes ignored)
             combined_timeline = self._combine_timelines(
                 mfa_timeline.get('keyframes', []),
                 emotion_timeline.get('keyframes', [])
@@ -251,60 +251,19 @@ class FaceRigIntegrator:
     
     def _combine_timelines(self, phoneme_keyframes: List[Dict], emotion_keyframes: List[Dict]) -> List[Dict]:
         """
-        Combine phoneme and emotion timelines into a single timeline.
-        Emotion keyframes take precedence for expression changes.
+        Use ONLY emotion timeline - no phoneme lip-sync.
+        This creates a calmer, more contemplative narrator that only shows emotions.
         """
+        # Skip phoneme keyframes entirely - only use emotions
         combined = []
         
-        # Create a map of emotion keyframes by time
-        emotion_map = {kf['time_ms']: kf for kf in emotion_keyframes}
-        
-        # Add all phoneme keyframes, potentially overridden by emotions
-        for phoneme_kf in phoneme_keyframes:
-            time_ms = phoneme_kf['time_ms']
-            
-            # Check if there's an emotion at this time (within 50ms tolerance)
-            emotion_kf = None
-            for emo_time in emotion_map.keys():
-                if abs(emo_time - time_ms) < 50:
-                    emotion_kf = emotion_map[emo_time]
-                    break
-            
-            if emotion_kf:
-                # Merge emotion with phoneme
-                combined_kf = {
-                    'time_ms': time_ms,
-                    'target_expr': emotion_kf['target_expr'],
-                    'phoneme': phoneme_kf.get('phoneme', ''),
-                    'transition_duration_ms': 300
-                }
-            else:
-                # Just phoneme
-                combined_kf = {
-                    'time_ms': time_ms,
-                    'target_expr': phoneme_kf.get('target_expr', 'neutral'),
-                    'phoneme': phoneme_kf.get('phoneme', ''),
-                    'transition_duration_ms': 100
-                }
-            
-            combined.append(combined_kf)
-        
-        # Add any emotion keyframes that weren't near phoneme keyframes
-        phoneme_times = set(kf['time_ms'] for kf in phoneme_keyframes)
-        for emo_time, emo_kf in emotion_map.items():
-            # Check if this emotion time is far from any phoneme time
-            is_unique = True
-            for phoneme_time in phoneme_times:
-                if abs(emo_time - phoneme_time) < 50:
-                    is_unique = False
-                    break
-            
-            if is_unique:
-                combined.append({
-                    'time_ms': emo_time,
-                    'target_expr': emo_kf['target_expr'],
-                    'transition_duration_ms': 500
-                })
+        for emotion_kf in emotion_keyframes:
+            combined.append({
+                'time_ms': emotion_kf['time_ms'],
+                'target_expr': emotion_kf['target_expr'],
+                'target_pose': emotion_kf.get('target_pose', 'center'),
+                'transition_duration_ms': 800  # Slow, smooth transitions between emotions
+            })
         
         # Sort by time
         combined.sort(key=lambda kf: kf['time_ms'])

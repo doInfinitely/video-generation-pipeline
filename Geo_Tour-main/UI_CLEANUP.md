@@ -193,3 +193,4 @@ To verify the changes:
 
 The UI is now cleaner, simpler, and matches the actual audio pipeline! 🎉
 
+
