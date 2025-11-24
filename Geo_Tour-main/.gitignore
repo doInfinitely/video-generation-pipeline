@@ -87,7 +87,8 @@ log/
 *.old
 
 # Streamlit
-.streamlit/
+.streamlit/secrets.toml
+.streamlit/config.toml
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -125,4 +126,7 @@ checkpoints/
 *token*
 *password*
 *credential*
+# But allow documentation and example files (negation rules must come after)
+!SECRETS_SETUP.md
+!.streamlit/secrets.toml.example
 INTEGRATION_GUIDE.PY

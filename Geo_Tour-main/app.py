@@ -7,7 +7,7 @@ from pathlib import Path
 import os
 
 from pipeline import VideoPipeline
-from config import OUTPUT_DIR, ensure_directories, FACE_RIG_URL
+from config import OUTPUT_DIR, ensure_directories, get_secret, FACE_RIG_URL
 
 
 # Page configuration
@@ -63,9 +63,9 @@ def initialize_pipeline():
             pass
     
     # Check API keys
-    openai_key = os.getenv("OPENAI_API_KEY")
-    replicate_key = os.getenv("REPLICATE_API_KEY") or os.getenv("VIDEO_API_KEY")
-    tts_key = os.getenv("TTS_API_KEY") or os.getenv("ELEVEN_LABS_API_KEY")
+    openai_key = get_secret("OPENAI_API_KEY")
+    replicate_key = get_secret("REPLICATE_API_KEY") or get_secret("VIDEO_API_KEY")
+    tts_key = get_secret("TTS_API_KEY") or get_secret("ELEVEN_LABS_API_KEY")
     
     if not openai_key:
         errors.append("❌ **OPENAI_API_KEY** not found in environment variables")
@@ -102,9 +102,23 @@ def initialize_pipeline():
         import requests
     except ImportError:
         missing_modules.append("requests")
-    
+
     if missing_modules:
         errors.append(f"❌ **Missing dependencies**: Install with `pip install {' '.join(missing_modules)}`")
+
+    # Check optional diagram generation modules
+    diagram_available = True
+    try:
+        import google.generativeai
+    except ImportError:
+        diagram_available = False
+    try:
+        import matplotlib
+    except ImportError:
+        diagram_available = False
+
+    if not diagram_available:
+        warnings.append("⚠️ Diagram generation dependencies not installed (optional). Install with: `pip install google-generativeai matplotlib`")
     
     # Show warnings if any
     if warnings:
@@ -244,35 +258,42 @@ def generate_video(prompt):
 with st.sidebar:
     st.header("⚙️ Configuration")
     
-    # API Keys Status (loaded from .env file)
+    # API Keys Status (loaded from Streamlit secrets or .env file)
     with st.expander("🔑 API Keys Status", expanded=False):
         # Check which keys are loaded
-        openai_key = os.getenv("OPENAI_API_KEY", "")
-        replicate_key = os.getenv("REPLICATE_API_KEY") 
-        eleven_labs_key= os.getenv("ELEVEN_LABS_API_KEY", "")
-        
+        openai_key = get_secret("OPENAI_API_KEY", "")
+        replicate_key = get_secret("REPLICATE_API_KEY")
+        eleven_labs_key = get_secret("ELEVEN_LABS_API_KEY", "")
+        gemini_key = get_secret("GEMINI_API_KEY") or get_secret("GOOGLE_API_KEY", "")
+
         # Show status for each key
         if openai_key:
-            st.success("✅ OpenAI API Key: Loaded from environment")
+            st.success("✅ OpenAI API Key: Configured")
         else:
-            st.warning("⚠️ OpenAI API Key: Not found (set OPENAI_API_KEY in .env)")
-        
+            st.warning("⚠️ OpenAI API Key: Not found (set in Streamlit secrets or .env)")
+
         if replicate_key:
-            st.success("✅ Replicate API Key: Loaded from environment")
+            st.success("✅ Replicate API Key: Configured")
         else:
-            st.warning("⚠️ Replicate API Key: Not found (set REPLICATE_API_KEY in .env)")
-        
+            st.warning("⚠️ Replicate API Key: Not found (set in Streamlit secrets or .env)")
+
+        if gemini_key:
+            st.success("✅ Gemini API Key: Configured")
+            st.caption("📊 Enables labeled diagram generation with matplotlib")
+        else:
+            st.info("ℹ️ Gemini API Key: Optional for labeled diagrams (set in Streamlit secrets or .env)")
+
         if eleven_labs_key:
-            st.success("✅ Eleven Labs API Key: Loaded from environment")
+            st.success("✅ Eleven Labs API Key: Configured")
         else:
-            st.info("ℹ️ Eleven Labs API Key: Optional (set ELEVEN_LABS_API_KEY in .env)")
+            st.info("ℹ️ Eleven Labs API Key: Optional (set in Streamlit secrets or .env)")
     
     # Provider Selection
     with st.expander("🎨 Providers", expanded=True):
-        _replicate_key = os.getenv("REPLICATE_API_KEY") or os.getenv("VIDEO_API_KEY")
+        _replicate_key = get_secret("REPLICATE_API_KEY") or get_secret("VIDEO_API_KEY")
         _providers = ["replicate"]
         if not _replicate_key:
-            st.error("Replicate API key not found. Please set REPLICATE_API_KEY in your .env file.")
+            st.error("Replicate API key not found. Please set REPLICATE_API_KEY in Streamlit secrets or .env file.")
         st.selectbox("Video Provider", _providers, index=0, key="video_provider", disabled=not _replicate_key)
         from config import STABILITY_MODEL, STORYBOARD_MODEL
         st.text_input("Image-to-Video Model (Replicate)", value=STABILITY_MODEL, key="svd_model")
@@ -334,6 +355,28 @@ with st.sidebar:
 # Main content area
 if not st.session_state.pipeline:
     st.info("👈 Configure and initialize the pipeline in the sidebar to get started")
+
+    # Show feature highlights when not initialized
+    st.markdown("---")
+    st.subheader("✨ Features")
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("**🎥 AI Video Generation**")
+        st.caption("Generate stunning videos using Replicate's Seedance and Stable Video Diffusion models")
+
+        st.markdown("**🎭 Animated Characters**")
+        st.caption("Lip-synced character animations with emotion integration")
+
+    with col2:
+        st.markdown("**📊 Labeled Diagrams** ✨ NEW")
+        st.caption("Automatically generates animated matplotlib diagrams with labels for complex concepts")
+
+        st.markdown("**🎬 Intelligent Scene Planning**")
+        st.caption("AI automatically mixes traditional video with labeled diagrams for best results")
+
+    st.info("💡 **Tip:** Enable labeled diagrams by setting `GEMINI_API_KEY` in your .env file")
+
 else:
     # Input section
     st.header("📝 Video Prompt")
@@ -346,6 +389,7 @@ else:
     example_texts = {
         "rainbow": "Explain how rainbows form when light passes through water droplets",
         "solar": "Give a tour of the planets in our solar system",
+        "earth_layers": "Explore Earth's internal structure, from the crust through the mantle to the core, and how tectonic plates shape our planet",
         "photosynthesis": "Explain how plants convert sunlight into energy through photosynthesis"
     }
     
@@ -375,9 +419,13 @@ else:
         if st.button("🌍 Solar System", key="btn_solar"):
             st.session_state.selected_example = "solar"
             st.rerun()
+        if st.button("🌏 Earth's Layers 📊", key="btn_earth"):
+            st.session_state.selected_example = "earth_layers"
+            st.rerun()
         if st.button("🔬 Photosynthesis", key="btn_photosynthesis"):
             st.session_state.selected_example = "photosynthesis"
             st.rerun()
+        st.caption("📊 = Great for labeled diagrams")
     
     # Progress tracking section
     if st.session_state.generating:
@@ -470,7 +518,13 @@ else:
             with tab3:
                 st.subheader("Scene Breakdown")
                 for scene in result['scenes']['scenes']:
-                    with st.expander(f"Scene {scene['scene_number']} ({scene['duration']}s)"):
+                    # Get scene type and icon
+                    scene_type = scene.get('scene_type', 'video')
+                    scene_icon = "📊" if scene_type == "diagram" else "🎥"
+                    scene_type_label = "Labeled Diagram" if scene_type == "diagram" else "Video"
+
+                    with st.expander(f"{scene_icon} Scene {scene['scene_number']} - {scene_type_label} ({scene['duration']}s)"):
+                        st.markdown(f"**Type:** {scene_type_label}")
                         st.markdown(f"**Narration:** {scene['narration']}")
                         st.markdown(f"**Visual:** {scene['visual_description']}")
             

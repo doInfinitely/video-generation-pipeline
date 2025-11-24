@@ -1,0 +1,52 @@
+{
+  "scenes": [
+    {
+      "scene_number": 1,
+      "scene_type": "video",
+      "narration": "Deep beneath our feet lies a story billions of years in the making. The Grand Canyon is not just a magnificent gorge - it's a window into Earth's ancient past, revealing the very layers that make up our planet.",
+      "visual_description": "Expansive wide-angle view of A wide aerial view of the Grand Canyon at sunrise, with the sun casting a warm glow over the vast expanse of ridges and valleys, showcasing the rich reds and browns of the rock formations., dramatic volumetric lighting with god rays, emphasizing scale of geological features, emphasizing vast scale through perspective, framing implies subtle parallax motion. IMAX-quality detail and clarity, 16:9 cinematic composition",
+      "duration": 6,
+      "original_visual_description": "A wide aerial view of the Grand Canyon at sunrise, with the sun casting a warm glow over the vast expanse of ridges and valleys, showcasing the rich reds and browns of the rock formations."
+    },
+    {
+      "scene_number": 2,
+      "scene_type": "3d_visualization",
+      "narration": "At the deepest level lie the Vishnu Basement Rocks, nearly 2 billion years old, formed from the crystallized roots of ancient mountains. These dark metamorphic and igneous rocks represent Earth's primordial crust.",
+      "visual_description": "Macro detail shot of An animated cross-section of the Earth's crust showing layers, with the camera slowly descending to focus on the Vishnu Basement Rocks. The layers are labeled, and textures of dark metamorphic and igneous rocks are highlighted., backlit with rim lighting, revealing geological layers and deep time, with clear foreground, mid-ground, and background layers, staged for gentle tracking shot. stunning visual spectacle, 16:9 cinematic composition",
+      "duration": 6,
+      "original_visual_description": "An animated cross-section of the Earth's crust showing layers, with the camera slowly descending to focus on the Vishnu Basement Rocks. The layers are labeled, and textures of dark metamorphic and igneous rocks are highlighted."
+    },
+    {
+      "scene_number": 3,
+      "scene_type": "3d_visualization",
+      "narration": "Above them, the Grand Canyon Supergroup tells of ancient seas and river deltas from 1.2 billion to 740 million years ago. These tilted layers capture a time when continents were still assembling.",
+      "visual_description": "Macro detail shot of Animated layers of the Grand Canyon Supergroup, with a tilt showing the sedimentary texture and different colors representing ancient seas and river deltas. The camera pans across the layers to reveal sediment build-up., backlit with rim lighting, capturing fluid motion and reflections, revealing epic proportions, framed as if camera is slowly pushing in. IMAX-quality detail and clarity, 16:9 cinematic composition",
+      "duration": 6,
+      "original_visual_description": "Animated layers of the Grand Canyon Supergroup, with a tilt showing the sedimentary texture and different colors representing ancient seas and river deltas. The camera pans across the layers to reveal sediment build-up."
+    },
+    {
+      "scene_number": 4,
+      "scene_type": "video",
+      "narration": "The horizontal Paleozoic layers - the Tapeats Sandstone, Bright Angel Shale, and Redwall Limestone - record ancient oceans advancing and retreating over 500 million years. Each colorful band is a chapter in Earth's history book.",
+      "visual_description": "Macro detail shot of Close-up shots of the Grand Canyon walls, highlighting the distinct horizontal bands of Tapeats Sandstone, Bright Angel Shale, and Redwall Limestone. The colors shift slowly from golden sandstone to gray shale and red limestone under evening light., backlit with rim lighting, showing ancient rock formations in sharp detail, with clear foreground, mid-ground, and background layers, framing implies subtle parallax motion. epic documentary cinematography, 16:9 cinematic composition",
+      "duration": 6,
+      "original_visual_description": "Close-up shots of the Grand Canyon walls, highlighting the distinct horizontal bands of Tapeats Sandstone, Bright Angel Shale, and Redwall Limestone. The colors shift slowly from golden sandstone to gray shale and red limestone under evening light."
+    },
+    {
+      "scene_number": 5,
+      "scene_type": "video",
+      "narration": "Then came the Colorado River, carving downward over 6 million years, aided by the uplift of the Colorado Plateau.",
+      "visual_description": "Medium shot with shallow depth of field of A sweeping view along the Colorado River as it winds through the canyon, shadows playing across the walls, capturing the river's turquoise waters contrasting with the surrounding rock formations., soft diffused natural light, capturing primordial landscape, with visible depth of field separation, composed for slow dolly movement. stunning visual spectacle, 16:9 cinematic composition",
+      "duration": 6,
+      "original_visual_description": "A sweeping view along the Colorado River as it winds through the canyon, shadows playing across the walls, capturing the river's turquoise waters contrasting with the surrounding rock formations."
+    },
+    {
+      "scene_number": 6,
+      "scene_type": "3d_visualization",
+      "narration": "Layer by layer, the river exposed this geological masterpiece, creating one of nature's most spectacular cross-sections of Earth's crust.",
+      "visual_description": "Sweeping aerial perspective of 3D time-lapse animation showing the Colorado River cutting through layers of the canyon over millions of years, animated erosion visibly altering the landscape, ending with a view of the present-day canyon cross-section., dramatic volumetric lighting with god rays, emphasizing scale of geological features, revealing epic proportions, composed for gentle drift forward. stunning visual spectacle, 16:9 cinematic composition",
+      "duration": 6,
+      "original_visual_description": "3D time-lapse animation showing the Colorado River cutting through layers of the canyon over millions of years, animated erosion visibly altering the landscape, ending with a view of the present-day canyon cross-section."
+    }
+  ]
+}
