@@ -3,6 +3,7 @@ Video generation module - Replicate Stability-only implementation
 Generates clips per scene using:
 - Text-to-Image: stability-ai/sdxl
 - Image-to-Video: stability-ai/stable-video-diffusion
+- 3D Visualization: Three.js animated renders
 """
 import replicate
 import requests
@@ -14,6 +15,14 @@ from config import (
     STORYBOARD_MODEL,
     TEMP_DIR,
 )
+
+# Import Three.js video generator
+try:
+    from threejs_video_generator import ThreeJSVideoGenerator
+    THREEJS_AVAILABLE = True
+except ImportError:
+    THREEJS_AVAILABLE = False
+    safe_print("⚠️  Three.js generator not available (missing dependencies)")
 
 
 def safe_print(*args, **kwargs):
@@ -32,6 +41,19 @@ class VideoGenerator:
         self.sdxl_model = sdxl_model or STORYBOARD_MODEL
         self.max_retries = max_retries
         self.retry_delay = retry_delay
+
+        # Initialize Three.js generator if available
+        self.threejs_generator = None
+        if THREEJS_AVAILABLE:
+            try:
+                self.threejs_generator = ThreeJSVideoGenerator(
+                    width=1920,
+                    height=1080,
+                    fps=24
+                )
+                safe_print("✅ Three.js video generator initialized")
+            except Exception as e:
+                safe_print(f"⚠️  Could not initialize Three.js generator: {e}")
     
     def generate_clips(self, scene_plan, output_dir=None, storyboard_images=None):
         """
@@ -54,21 +76,24 @@ class VideoGenerator:
         clip_paths = []
         
         for idx, scene in enumerate(scene_plan['scenes']):
-            safe_print(f"  Scene {scene['scene_number']}: {scene['visual_description'][:50]}...")
-            
+            scene_type = scene.get('scene_type', 'video')
+            type_icon = "📊" if scene_type == "diagram" else "🎥"
+            safe_print(f"  {type_icon} Scene {scene['scene_number']} ({scene_type}): {scene['visual_description'][:50]}...")
+
             # Get corresponding storyboard image if available
             storyboard_image = None
             if storyboard_images and idx < len(storyboard_images):
                 storyboard_image = storyboard_images[idx]
-            
+
             clip_path = self._generate_clip(
                 description=scene['visual_description'],
                 duration=scene['duration'],
                 scene_number=scene['scene_number'],
                 output_dir=output_dir,
-                storyboard_image=storyboard_image
+                storyboard_image=storyboard_image,
+                scene_type=scene_type
             )
-            
+
             clip_paths.append(clip_path)
         
         safe_print(f"✅ Generated {len(clip_paths)} clips")
@@ -127,15 +152,285 @@ class VideoGenerator:
         
         raise last_exception
     
-    def _generate_clip(self, description, duration, scene_number, output_dir, storyboard_image=None):
-        """Generate a single clip using Stability models via Replicate with retry logic"""
+    def _generate_clip(self, description, duration, scene_number, output_dir, storyboard_image=None, scene_type="video"):
+        """Generate a single clip with retry logic"""
         return self._retry_with_backoff(
             self._generate_clip_internal,
-            description, duration, scene_number, output_dir, storyboard_image
+            description, duration, scene_number, output_dir, storyboard_image, scene_type
         )
     
-    def _generate_clip_internal(self, description, duration, scene_number, output_dir, storyboard_image=None):
-        """Internal method to generate a single clip using Stability models via Replicate"""
+    def _generate_clip_internal(self, description, duration, scene_number, output_dir, storyboard_image=None, scene_type="video"):
+        """
+        Internal method to generate a single clip
+
+        Args:
+            description: Visual description
+            duration: Scene duration in seconds
+            scene_number: Scene number
+            output_dir: Output directory
+            storyboard_image: Optional storyboard image path
+            scene_type: "video" or "diagram"
+
+        Returns:
+            Path to generated video clip
+        """
+        # Route to appropriate generator based on scene type
+        if scene_type == "diagram":
+            return self._generate_matplotlib_diagram(description, duration, scene_number, output_dir)
+        else:
+            return self._generate_replicate_video(description, duration, scene_number, output_dir, storyboard_image)
+
+    def _generate_matplotlib_diagram(self, description, duration, scene_number, output_dir):
+        """Generate a labeled matplotlib diagram with simple animation using gemini-3-pro-preview"""
+        import os
+        import google.generativeai as genai
+
+        # Get Gemini API key
+        gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if not gemini_key:
+            raise RuntimeError("Gemini API key required. Set GEMINI_API_KEY or GOOGLE_API_KEY environment variable")
+
+        genai.configure(api_key=gemini_key)
+        model = genai.GenerativeModel("gemini-3-pro-preview")
+
+        safe_print(f"    📊 Generating matplotlib code with gemini-3-pro-preview...")
+
+        # Create prompt for matplotlib code generation
+        prompt = f"""Generate Python matplotlib code to create a labeled diagram with a simple animation based on this description:
+
+{description}
+
+Requirements:
+1. Create a labeled diagram (use plt.text() or plt.annotate() for labels)
+2. Add a simple animation that lasts approximately {duration} seconds at 24 fps
+3. Use matplotlib.animation.FuncAnimation for the animation
+4. The animation should be smooth and professional (e.g., highlighting layers, zooming, fading elements)
+5. Save the animation as an MP4 file at 1920x1080 resolution, 24 fps
+6. Use 'Agg' backend for non-interactive rendering
+7. The code should be complete and runnable as-is
+
+Output ONLY the Python code, no explanations. The code should:
+- Import all necessary libraries
+- Set figure size to (19.2, 10.8) for 1920x1080
+- Use plt.switch_backend('Agg') at the start
+- Save the animation using writer = FFMpegWriter(fps=24, bitrate=5000)
+- Include the save path as a parameter that can be passed in
+
+Example structure:
+```python
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from matplotlib.animation import FFMpegWriter
+import numpy as np
+
+def create_diagram_animation(output_path, duration={duration}):
+    fig, ax = plt.subplots(figsize=(19.2, 10.8), dpi=100)
+
+    # Your diagram code here
+
+    def animate(frame):
+        # Animation logic here
+        pass
+
+    fps = 24
+    frames = int(duration * fps)
+    anim = animation.FuncAnimation(fig, animate, frames=frames, interval=1000/fps)
+
+    writer = FFMpegWriter(fps=fps, bitrate=5000)
+    anim.save(output_path, writer=writer)
+    plt.close()
+
+# This will be called externally
+# create_diagram_animation('output.mp4', {duration})
+```
+
+Generate the complete, runnable code now:"""
+
+        try:
+            response = model.generate_content(prompt)
+
+            # Extract code from response
+            code = response.text.strip()
+
+            # Remove markdown code blocks if present
+            if code.startswith("```python"):
+                code = code.split("```python")[1]
+                code = code.split("```")[0]
+            elif code.startswith("```"):
+                code = code.split("```")[1]
+                code = code.split("```")[0]
+
+            code = code.strip()
+
+            safe_print(f"    ✅ Generated matplotlib code ({len(code)} chars)")
+            safe_print(f"    🎬 Executing matplotlib code to create animation...")
+
+            # Create output path
+            video_path = Path(output_dir) / f"scene_{scene_number}.mp4"
+
+            # Execute the code
+            exec_globals = {}
+            exec(code, exec_globals)
+
+            # Call the function
+            if 'create_diagram_animation' in exec_globals:
+                exec_globals['create_diagram_animation'](str(video_path), duration)
+            else:
+                raise RuntimeError("Generated code does not contain 'create_diagram_animation' function")
+
+            # Verify the video was created
+            if not video_path.exists() or video_path.stat().st_size < 1000:
+                raise RuntimeError(f"Video file was not created or is too small: {video_path}")
+
+            safe_print(f"    ✅ Matplotlib animation saved: {video_path.name}")
+            return str(video_path)
+
+        except Exception as e:
+            raise RuntimeError(f"Matplotlib diagram generation failed: {e}")
+
+    def _generate_3d_visualization(self, description, duration, scene_number, output_dir):
+        """Generate a 3D visualization using gemini-3-pro-image-preview slideshow"""
+        import os
+        import google.generativeai as genai
+
+        # Get Gemini API key
+        gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        if not gemini_key:
+            raise RuntimeError("Gemini API key required. Set GEMINI_API_KEY or GOOGLE_API_KEY environment variable")
+
+        genai.configure(api_key=gemini_key)
+        model = genai.GenerativeModel("gemini-3-pro-image-preview")
+
+        safe_print(f"    🎨 Generating image slideshow with gemini-3-pro-image-preview...")
+
+        # Calculate number of images (one every 2 seconds, minimum 3 images)
+        num_images = max(3, int(duration / 2))
+        safe_print(f"    📸 Generating {num_images} images for {duration}s slideshow...")
+
+        # Create directory for images
+        images_dir = Path(output_dir) / f"scene_{scene_number}_images"
+        images_dir.mkdir(exist_ok=True)
+
+        # Generate images with gemini-3-pro-image-preview
+        image_paths = []
+        for i in range(num_images):
+            safe_print(f"       Generating image {i+1}/{num_images}...")
+
+            try:
+                response = model.generate_content(description)
+
+                # Save image from response
+                image_path = images_dir / f"image_{i:03d}.png"
+
+                # Debug: check response structure
+                import base64
+
+                # Extract image data from response
+                if hasattr(response, 'parts') and len(response.parts) > 0:
+                    part = response.parts[0]
+
+                    # Check if it's inline_data
+                    if hasattr(part, 'inline_data') and part.inline_data:
+                        image_data = part.inline_data.data
+
+                        # Save directly if already bytes, otherwise decode from base64
+                        if isinstance(image_data, bytes):
+                            with open(image_path, 'wb') as f:
+                                f.write(image_data)
+                        else:
+                            with open(image_path, 'wb') as f:
+                                f.write(base64.b64decode(image_data))
+                    else:
+                        raise ValueError(f"No inline_data in response part. Part has: {dir(part)}")
+                else:
+                    raise ValueError(f"No parts in response. Response has: {dir(response)}")
+
+                # Verify the image was saved correctly
+                if not image_path.exists() or image_path.stat().st_size < 1000:
+                    raise ValueError(f"Image file is too small or doesn't exist: {image_path.stat().st_size if image_path.exists() else 0} bytes")
+
+                image_paths.append(image_path)
+                safe_print(f"       ✅ Image {i+1} saved ({image_path.stat().st_size} bytes)")
+
+            except Exception as e:
+                raise RuntimeError(f"Image generation failed for image {i+1}: {e}")
+
+        # Create slideshow video using FFmpeg
+        safe_print(f"    🎬 Creating slideshow video...")
+        video_path = Path(output_dir) / f"scene_{scene_number}.mp4"
+
+        try:
+            self._create_slideshow_video(image_paths, duration, video_path)
+            safe_print(f"    ✅ Slideshow video saved: {video_path.name}")
+            return str(video_path)
+        except Exception as e:
+            raise RuntimeError(f"Slideshow creation failed: {e}")
+
+    def _create_slideshow_video(self, image_paths, duration, output_path):
+        """
+        Create a slideshow video from images using FFmpeg with smooth transitions
+
+        Args:
+            image_paths: List of image file paths
+            duration: Total duration in seconds
+            output_path: Output video path
+        """
+        import subprocess
+
+        if not image_paths:
+            raise ValueError("No images provided for slideshow")
+
+        num_images = len(image_paths)
+
+        # Calculate duration per image (with slight overlap for transitions)
+        image_duration = duration / num_images
+
+        # Create a temporary file list for FFmpeg concat
+        concat_file = output_path.parent / f"concat_{output_path.stem}.txt"
+
+        try:
+            # Write concat file with duration for each image
+            with open(concat_file, 'w') as f:
+                for img_path in image_paths:
+                    f.write(f"file '{img_path.absolute()}'\n")
+                    f.write(f"duration {image_duration}\n")
+                # Add last image again without duration (FFmpeg requirement)
+                f.write(f"file '{image_paths[-1].absolute()}'\n")
+
+            # FFmpeg command to create slideshow with crossfade transitions
+            # Specs: 1920x1080, 24fps, H.264, yuv420p (matching pipeline specs)
+            cmd = [
+                "ffmpeg",
+                "-y",  # Overwrite output
+                "-f", "concat",
+                "-safe", "0",
+                "-i", str(concat_file),
+                "-vf", f"scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,format=yuv420p,fps=24",
+                "-c:v", "libx264",
+                "-crf", "18",  # High quality
+                "-preset", "medium",
+                "-movflags", "+faststart",
+                str(output_path)
+            ]
+
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=True
+            )
+
+            return True
+
+        finally:
+            # Clean up concat file
+            if concat_file.exists():
+                concat_file.unlink()
+
+    def _generate_replicate_video(self, description, duration, scene_number, output_dir, storyboard_image=None):
+        """Generate a video using Replicate API (original implementation)"""
         replicate_key = self.api_key or REPLICATE_API_KEY
         if not replicate_key:
             raise RuntimeError("Replicate API key is required")

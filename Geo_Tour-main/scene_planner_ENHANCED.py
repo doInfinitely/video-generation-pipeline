@@ -60,19 +60,47 @@ class ScenePlanner:
 Title: {script_data['title']}
 Script: {script_data['script']}
 
+IMPORTANT: You must include a MIX of scene types:
+- "video": Traditional AI-generated video footage (real-world scenes, landscapes, nature, etc.)
+- "diagram": Labeled matplotlib diagrams with simple animations (best for: cross-sections, geological layers, scientific diagrams, data visualizations, educational illustrations)
+
+WHEN TO USE DIAGRAMS:
+✓ Geological cross-sections (Earth's layers, tectonic plates, fault lines) with labels
+✓ Scientific diagrams that need labels and annotations
+✓ Abstract scientific concepts that need visual representation with text labels
+✓ Data visualizations, charts, or comparative diagrams
+✓ Educational illustrations that benefit from labeled components
+
+WHEN TO USE VIDEO:
+✓ Real-world landscapes and environments
+✓ Natural phenomena (weather, water, sky)
+✓ Establishing shots and context scenes
+✓ Anything that could be filmed in the real world
+
+REQUIREMENT: Include AT LEAST one diagram scene in the plan (preferably 1-2 out of {ts} scenes).
+
 Return ONLY a JSON object with this structure:
 {{
   "scenes": [
     {{
       "scene_number": 1,
+      "scene_type": "video",
       "narration": "portion of script for this scene",
       "visual_description": "detailed description of visuals to generate - be specific about what should be shown",
+      "duration": {sd}
+    }},
+    {{
+      "scene_number": 2,
+      "scene_type": "diagram",
+      "narration": "portion of script for this scene",
+      "visual_description": "detailed description of labeled diagram to generate - specify what should be shown, what labels are needed, and what simple animation should occur (e.g., highlighting different layers, zooming in, fading elements)",
       "duration": {sd}
     }}
   ]
 }}
 
-Each scene should be {sd} seconds. Visual descriptions should be detailed and suitable for AI image/video generation.
+Each scene should be {sd} seconds. Visual descriptions should be detailed and suitable for generation.
+For diagrams, include: what should be shown, what labels are needed, and what simple animation should occur.
 DO NOT include any text outside the JSON."""
 
         try:
@@ -95,16 +123,23 @@ DO NOT include any text outside the JSON."""
                 raise ValueError("Invalid scene plan structure")
 
             for scene in scene_plan["scenes"]:
-                required_fields = ["scene_number", "narration", "visual_description", "duration"]
+                required_fields = ["scene_number", "scene_type", "narration", "visual_description", "duration"]
                 if not all(field in scene for field in required_fields):
                     raise ValueError(f"Scene missing required fields: {scene}")
+
+                # Validate scene_type
+                if scene["scene_type"] not in ["video", "diagram"]:
+                    raise ValueError(f"Invalid scene_type: {scene['scene_type']}. Must be 'video' or 'diagram'")
 
                 try:
                     scene["duration"] = sd
                 except Exception:
                     pass
 
-            safe_print(f"✅ Created {len(scene_plan['scenes'])} scenes")
+            # Count scene types
+            video_count = sum(1 for s in scene_plan["scenes"] if s["scene_type"] == "video")
+            diagram_count = sum(1 for s in scene_plan["scenes"] if s["scene_type"] == "diagram")
+            safe_print(f"✅ Created {len(scene_plan['scenes'])} scenes ({video_count} video, {diagram_count} diagram)")
 
             # ADDED: Apply cinematic enhancement
             if self.use_cinematic_enhancement and self.cinematic_enhancer:
@@ -124,17 +159,27 @@ DO NOT include any text outside the JSON."""
 
 
 if __name__ == "__main__":
-    # Test the enhanced scene planner
+    # Test the enhanced scene planner with scene types
     planner = ScenePlanner(use_cinematic_enhancement=True)
 
     test_script = {
-        "title": "How Rainbows Form",
-        "script": "Rainbows appear when sunlight passes through water droplets in the air. The light bends and separates into different colors, creating the beautiful arc we see in the sky."
+        "title": "The Formation of the Grand Canyon",
+        "script": "The Grand Canyon formed over millions of years through the erosive power of the Colorado River. Layer by layer, the river cut through ancient rock formations, revealing a geological timeline spanning nearly two billion years. The canyon's distinctive red and orange layers tell the story of ancient seas, deserts, and shifting tectonic plates that shaped this magnificent landscape."
     }
 
-    plan = planner.create_plan(test_script)
+    plan = planner.create_plan(test_script, target_scenes=5)
 
-    print("\n" + "="*60)
-    print("ENHANCED SCENE PLAN OUTPUT")
-    print("="*60)
+    print("\n" + "="*80)
+    print("ENHANCED SCENE PLAN OUTPUT WITH SCENE TYPES")
+    print("="*80)
     print(json.dumps(plan, indent=2))
+
+    print("\n" + "="*80)
+    print("SCENE TYPE SUMMARY")
+    print("="*80)
+    for scene in plan["scenes"]:
+        scene_type_icon = "🎥" if scene["scene_type"] == "video" else "📊"
+        print(f"{scene_type_icon} Scene {scene['scene_number']}: {scene['scene_type']}")
+        print(f"   Narration: {scene['narration'][:60]}...")
+        print(f"   Visual: {scene['visual_description'][:80]}...")
+        print()
