@@ -217,6 +217,31 @@ def list_timelines() -> List[str]:
     """List all available timeline path_ids"""
     timelines = []
     
+    # If S3 is enabled, list from S3
+    if USE_S3 and s3_client:
+        try:
+            # List all "directories" in sequences/
+            paginator = s3_client.get_paginator('list_objects_v2')
+            pages = paginator.paginate(
+                Bucket=S3_BUCKET,
+                Prefix=f"{S3_PREFIX}sequences/",
+                Delimiter='/'
+            )
+            
+            for page in pages:
+                for prefix in page.get('CommonPrefixes', []):
+                    # Extract timeline name from prefix
+                    # e.g., "frames/sequences/neutral_to_happy_soft__center/" -> "neutral_to_happy_soft__center"
+                    timeline_name = prefix['Prefix'].rstrip('/').split('/')[-1]
+                    if timeline_name and not timeline_name.startswith("."):
+                        timelines.append(timeline_name)
+            
+            return sorted(timelines)
+        except Exception as e:
+            print(f"[!] Failed to list timelines from S3: {e}")
+            # Fall through to local filesystem
+    
+    # Fall back to local filesystem
     # Check sequences directory first
     if SEQUENCES_DIR.exists():
         for item in SEQUENCES_DIR.iterdir():
@@ -512,8 +537,8 @@ async def generate_alignment(
     import tempfile
     import shutil
     
-    # Create temp directory for MFA
-    temp_dir = Path(tempfile.mkdtemp(prefix="mfa_align_"))
+    # Create temp directory for MFA (use /tmp which is mounted from host)
+    temp_dir = Path(tempfile.mkdtemp(prefix="mfa_align_", dir="/tmp"))
     
     try:
         # Save audio file
@@ -858,8 +883,8 @@ async def export_video(request: ExportRequest):
     
     temp_dir = None
     try:
-        # Create temporary directory for frames
-        temp_dir = tempfile.mkdtemp()
+        # Create temporary directory for frames (use /tmp which is mounted from host)
+        temp_dir = tempfile.mkdtemp(dir="/tmp")
         frames_dir = Path(temp_dir) / "frames"
         frames_dir.mkdir()
         
@@ -1008,49 +1033,104 @@ async def export_video(request: ExportRequest):
                     
                     # Load frame
                     frame_data = timeline[frame_index]
-                    frame_path = TIMELINES_DIR / seg["pathId"] / frame_data["file"]
-                    if frame_path.exists():
-                        frame_img = Image.open(frame_path)
+                    
+                    # Load from S3 or local filesystem
+                    if USE_S3 and s3_client:
+                        try:
+                            s3_key = f"{S3_PREFIX}sequences/{seg['pathId']}/{frame_data['file']}"
+                            response = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+                            frame_img = Image.open(BytesIO(response['Body'].read()))
+                        except Exception as e:
+                            print(f"[!] Failed to load frame from S3: {s3_key} - {e}")
+                    else:
+                        frame_path = TIMELINES_DIR / seg["pathId"] / frame_data["file"]
+                        if frame_path.exists():
+                            frame_img = Image.open(frame_path)
                 else:
                     # Transition complete - show final frame
                     seg = transition_segments[-1]
                     timeline = seg["timeline"]
-                    frame_path = TIMELINES_DIR / seg["pathId"] / timeline[-1]["file"]
-                    if frame_path.exists():
-                        frame_img = Image.open(frame_path)
+                    
+                    # Load from S3 or local filesystem
+                    if USE_S3 and s3_client:
+                        try:
+                            s3_key = f"{S3_PREFIX}sequences/{seg['pathId']}/{timeline[-1]['file']}"
+                            response = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+                            frame_img = Image.open(BytesIO(response['Body'].read()))
+                        except Exception as e:
+                            print(f"[!] Failed to load final frame from S3: {s3_key} - {e}")
+                    else:
+                        frame_path = TIMELINES_DIR / seg["pathId"] / timeline[-1]["file"]
+                        if frame_path.exists():
+                            frame_img = Image.open(frame_path)
                     active_transition = None
             
             if not frame_img:
                 # No active transition - show idle frame
                 idle_path = f"{current_state['expr']}_to_{current_state['expr']}__{current_state['pose']}"
-                idle_dir = TIMELINES_DIR / idle_path
                 
-                if idle_dir.exists():
-                    json_file = idle_dir / "manifest.json"
-                    if json_file.exists():
-                        with open(json_file, "r") as f:
-                            manifest_data = json.load(f)
-                            idle_timeline = manifest_data.get("frames", [])
-                            if idle_timeline:
-                                frame_path = idle_dir / idle_timeline[-1]["file"]
-                                if frame_path.exists():
-                                    frame_img = Image.open(frame_path)
-                                    if frame_num == 0:
-                                        print(f"[Export] Using idle frame: {frame_path}")
+                # Load idle frame from S3 or local filesystem
+                if USE_S3 and s3_client:
+                    try:
+                        # Load manifest from S3
+                        s3_key = f"{S3_PREFIX}sequences/{idle_path}/manifest.json"
+                        response = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+                        manifest_data = json.load(response['Body'])
+                        idle_timeline = manifest_data.get("frames", [])
+                        
+                        if idle_timeline:
+                            s3_key = f"{S3_PREFIX}sequences/{idle_path}/{idle_timeline[-1]['file']}"
+                            response = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+                            frame_img = Image.open(BytesIO(response['Body'].read()))
+                            if frame_num == 0:
+                                print(f"[Export] Using idle frame from S3: {s3_key}")
+                    except Exception as e:
+                        if frame_num == 0:
+                            print(f"[!] Failed to load idle frame from S3: {idle_path} - {e}")
+                else:
+                    idle_dir = TIMELINES_DIR / idle_path
+                    
+                    if idle_dir.exists():
+                        json_file = idle_dir / "manifest.json"
+                        if json_file.exists():
+                            with open(json_file, "r") as f:
+                                manifest_data = json.load(f)
+                                idle_timeline = manifest_data.get("frames", [])
+                                if idle_timeline:
+                                    frame_path = idle_dir / idle_timeline[-1]["file"]
+                                    if frame_path.exists():
+                                        frame_img = Image.open(frame_path)
+                                        if frame_num == 0:
+                                            print(f"[Export] Using idle frame: {frame_path}")
                                 else:
                                     print(f"[Export] Idle frame not found: {frame_path}")
                 
                 # If still no frame, try endpoints directory as fallback
                 if not frame_img:
-                    endpoints_dir = FRAMES_DIR / "endpoints"
-                    endpoint_file = endpoints_dir / f"{current_state['expr']}__{current_state['pose']}.png"
-                    if endpoint_file.exists():
-                        frame_img = Image.open(endpoint_file)
-                        if frame_num == 0:
-                            print(f"[Export] Using endpoint: {endpoint_file.name}")
+                    endpoint_filename = f"{current_state['expr']}__{current_state['pose']}.png"
+                    
+                    # Try S3 first
+                    if USE_S3 and s3_client:
+                        try:
+                            s3_key = f"{S3_PREFIX}endpoints/{endpoint_filename}"
+                            response = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+                            frame_img = Image.open(BytesIO(response['Body'].read()))
+                            if frame_num == 0:
+                                print(f"[Export] Using endpoint from S3: {endpoint_filename}")
+                        except Exception as e:
+                            if frame_num == 0:
+                                print(f"[!] Endpoint not found in S3: {endpoint_filename}")
                     else:
-                        if frame_num == 0:
-                            print(f"[Export] Endpoint not found: {endpoint_file}")
+                        # Local filesystem
+                        endpoints_dir = FRAMES_DIR / "endpoints"
+                        endpoint_file = endpoints_dir / endpoint_filename
+                        if endpoint_file.exists():
+                            frame_img = Image.open(endpoint_file)
+                            if frame_num == 0:
+                                print(f"[Export] Using endpoint: {endpoint_file.name}")
+                        else:
+                            if frame_num == 0:
+                                print(f"[Export] Endpoint not found: {endpoint_file}")
             
             # Save frame (or black frame if nothing found)
             if frame_img:

@@ -7,7 +7,7 @@ from pathlib import Path
 import os
 
 from pipeline import VideoPipeline
-from config import OUTPUT_DIR, ensure_directories
+from config import OUTPUT_DIR, ensure_directories, FACE_RIG_URL
 
 
 # Page configuration
@@ -290,7 +290,7 @@ with st.sidebar:
     with st.expander("🎭 Character Voice & Settings", expanded=True):
         st.text_input(
             "Face Rig Server URL",
-            value="http://localhost:8000",
+            value=FACE_RIG_URL,
             key="face_rig_url",
             help="URL of the running face_rig server"
         )

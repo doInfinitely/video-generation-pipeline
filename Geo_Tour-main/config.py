@@ -19,6 +19,9 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 VIDEO_API_KEY = os.getenv("VIDEO_API_KEY")
 TTS_API_KEY = os.getenv("TTS_API_KEY", os.getenv("ELEVENLABS_API_KEY"))
 
+# Face Rig settings
+FACE_RIG_URL = os.getenv("FACE_RIG_URL", "http://localhost:8000")
+
 # Directory settings
 BASE_DIR = Path(__file__).parent
 OUTPUT_DIR = BASE_DIR / "output"
